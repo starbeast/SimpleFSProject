@@ -1,7 +1,27 @@
 ﻿open System
 open System.IO
 open System.Diagnostics
+open System.Collections.Generic
 
+//OOP paradigm
+//explicit constructor
+type MyClass1<'a>(x : 'a) =
+    static let mutable m_numLeft : int = 5
+    member val Prop = x with get, set    
+    new () =
+        MyClass1(Unchecked.defaultof<'a>)
+    member public inner.val2 = inner.Prop
+    member internal self.val3 = self.Prop
+//implicit constructor
+type MyClass2(x : int) =
+    let square a : int =
+        a * a
+    member __.Y = square x
+    member __.X = x   
+        
+
+//self defined simple style exceptions
+exception MyOwnException of string * int
 //discriminated unions
 
 type Suit =
@@ -20,6 +40,10 @@ type Card =
 type BinaryTree =
     | Node of int * BinaryTree * BinaryTree
     | Empty
+
+type Pet =
+    | Dog of string
+    | Cat of string * int
 
 //defining a record with member
 type Vector =
@@ -173,9 +197,91 @@ let main (args : string[]) =
     let windowedProcesses =
         query {
             for activeProcess in Process.GetProcesses() do
-            where (activeProcess.MainWindowHandle <> nativeint 0)
+            where (activeProcess.MainWindowHandle <> nativeint 0) 
             select activeProcess
             }
     let printProcessList procSeq =
         Seq.iter (printfn "%A") procSeq
+    //will give a compiler error: mutable values are always saved on the stack, so you can't capture them
+    let invalidUseOfMutable() =
+        let mutable x = 0
+        let incrementX() = x <- x + 1
+        incrementX()
+        x
+    let letters = ref [ "a"; "b"; "c"; "d"; "e"; "f" ]
+    //:= to assign, ! to get values
+    letters := !letters |> List.filter (fun p -> p <> "e")
+    let array : int[][][] = Array.zeroCreate 5
+    array.[0] <- Array.zeroCreate 2
+    array.[0].[0] <- Array.zeroCreate 5
+    let listOfElements = new List<string>()
+    listOfElements.Add("first")
+    listOfElements.Add("second")
+    listOfElements.AddRange(!letters |> List.toArray)
+    for i in listOfElements do
+        printf "value: %s" i
+
+    let pattern =
+        function
+        | Cat( _ , 5) ->
+            printf "Cat 5"
+        | Cat( _ , _ ) ->
+            printf "Cat undefined"
+        | Dog( _ ) ->
+            printf "Dog"
+
+    let pets = [| Dog("Doggie"); Cat("Pussy", 15); Cat("Yuppie", 3) |]
+    for pattern in query {
+                           for pet in pets do select pet } do
+        printf "Using pattern"
+    let divide2 x y =
+        if y = 0 then raise <| new System.DivideByZeroException()
+        x / y
+
+    let exitCode =
+        try
+            let filePath = args.[0]
+            printfn "Trying to gather information about file:"
+            printfn "%s" filePath
+            // Does the drive exist?
+            let matchingDrive =
+                Directory.GetLogicalDrives()
+                |> Array.tryFind (fun drivePath -> drivePath.[0] = filePath.[0])
+            if matchingDrive = None then
+                raise <| new DriveNotFoundException(filePath)
+            // Does the folder exist?
+            let directory = Path.GetPathRoot(filePath)
+            if not <| Directory.Exists(directory) then
+                raise <| new DirectoryNotFoundException(filePath)
+            // Does the file exist?
+            if not <| File.Exists(filePath) then
+                raise <| new FileNotFoundException(filePath)
+            let fileInfo = new FileInfo(filePath)
+            printfn "Created = %s" <| fileInfo.CreationTime.ToString()
+            printfn "Access = %s" <| fileInfo.LastAccessTime.ToString()
+            printfn "Size = %d" fileInfo.Length
+            0        
+        with
+        // Combine patterns using Or
+        | :? DriveNotFoundException
+        | :? DirectoryNotFoundException as ex ->  
+            printfn "Unhandled Drive or Directory not found exception"
+            1
+        // Bind the exception value to value ex
+        | :? FileNotFoundException as ex -> 
+            printfn "Unhandled FileNotFoundException: %s" ex.Message
+            3
+        | :? IOException as ex -> 
+            printfn "Unhandled IOException: %s" ex.Message
+            4
+        | MyOwnException(message, value) ->
+            printfn "MyOwnException with message: %s" message
+            5
+        // Use a wildcard match (ex will be of type System.Exception)
+        | _ as ex -> 
+            printfn "Unhandled Exception: %s" ex.Message
+            6
+        // Return the exit code
+    printfn "Exiting with code %d" exitCode
+    ignore exitCode
     0
