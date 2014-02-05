@@ -1,5 +1,6 @@
 ﻿open System
 open System.IO
+open System.Diagnostics
 
 //discriminated unions
 
@@ -19,6 +20,12 @@ type Card =
 type BinaryTree =
     | Node of int * BinaryTree * BinaryTree
     | Empty
+
+//defining a record with member
+type Vector =
+    { X : float; Y : float; Z : float }
+        member this.Length =
+            sqrt <| this.X ** 2.0 + this.Y ** 2.0 + this.Z ** 2.0
 
 type Statement =
         | Print of string
@@ -161,4 +168,14 @@ let main (args : string[]) =
             printfn "Node %d" data
             printInOrder right
         | Empty -> ()
+    //try not to use wildcards    
+    //queries (on the top of IQueryable)
+    let windowedProcesses =
+        query {
+            for activeProcess in Process.GetProcesses() do
+            where (activeProcess.MainWindowHandle <> nativeint 0)
+            select activeProcess
+            }
+    let printProcessList procSeq =
+        Seq.iter (printfn "%A") procSeq
     0
