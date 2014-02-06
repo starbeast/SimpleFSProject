@@ -2,6 +2,7 @@
 open System.IO
 open System.Diagnostics
 open System.Collections.Generic
+open System.Text.RegularExpressions
 
 //OOP paradigm
 //explicit constructor
@@ -17,13 +18,94 @@ type MyClass2(x : int) =
     let square a : int =
         a * a
     member __.Y = square x
-    member __.X = x   
-        
+    member __.X = x
 
+//use let and do as initialization part
+//use val as default values or in explicit constructors
+//use member as Properties of the object
+//inheritance
+type BaseClass =
+    val m_field1 : int
+    new(x) = { m_field1 = x }
+    member this.Field1 = this.m_field1
+
+type DerivedClassImplicit(field1, field2) = 
+    inherit BaseClass(field1)
+    static let mutable x = 15
+    let m_field2 : int = field2
+    static do
+        x <- 100
+    new (field1, field2, field3) =        
+        new DerivedClassImplicit(field1, field2 + field3)    
+    member this.Field2 = m_field2
+    static member val Field3 : int = x with get, set
+    static member public Field4 = x
+
+type DerivedClassExplicit =
+    inherit BaseClass
+    val m_field2 : int
+    new(field1, field2) =
+        let wat = field2 * 2
+        {(*brackets are necessary in initialization*)
+            inherit BaseClass(field1)
+            m_field2 = wat
+        }
+    member this.Field2 = this.m_field2
+
+type Sandwitch() as this =
+    do
+        ignore("blood"::this.Ingredients)
+    abstract Ingredients : string list
+    default this.Ingredients = []    
+
+    abstract Calories : int
+    default this.Calories = 0
+
+type BLTSandwitch() = 
+    inherit Sandwitch()
+
+    override this.Ingredients = ["Bacon"; "Bread"; "Mayonese"]
+    override this.Calories = 400
+
+type TurkeySwissSandwich =
+    inherit Sandwitch
+
+    new () =
+        {
+            inherit Sandwitch()            
+        }
+    override this.Ingredients = ["Turkey"; "Swiss"]
+    override this.Calories = 330
+
+//implementing IDisposable
+type MultiFileLogger() =
+    let mutable disposed = false
+    let m_logs = new List<StreamWriter>()
+    abstract Dispose : bool -> unit
+    default this.Dispose (disposing : bool) =
+        if not disposed then
+            disposed <- true
+
+            if disposing then                
+                ()
+            printfn "Cleaning up..."
+            m_logs |> Seq.iter (fun writer -> writer.Close())
+            m_logs.Clear()
+            ()
+    member this.AttachLogFile file =
+        let newLogFile = new StreamWriter(file, true)
+        m_logs.Add(newLogFile)
+    member this.LogMessage (msg : string) =
+        m_logs |> Seq.iter (fun writer -> writer.WriteLine(msg))
+    interface IDisposable with
+        member this.Dispose() =
+            this.Dispose true
+            GC.SuppressFinalize(this)
+    override this.Finalize () =
+        this.Dispose false
 //self defined simple style exceptions
 exception MyOwnException of string * int
 //discriminated unions
-
 type Suit =
     |Spade
     |Club
@@ -36,6 +118,16 @@ type Card =
     |King of Suit
     |Jack of Suit
     |ValueCard of int * Suit
+
+//enum
+type ChessPiece =
+    | Empty = 0
+    | Pawn = 1
+    | Knight = 3
+    | Bishop = 4
+    | Rook = 5
+    | Queen = 8
+    | King = 1000000
 
 type BinaryTree =
     | Node of int * BinaryTree * BinaryTree
@@ -284,4 +376,108 @@ let main (args : string[]) =
         // Return the exit code
     printfn "Exiting with code %d" exitCode
     ignore exitCode
+    let lst = new List<_>( [| 1; 2; 3; 4 |] )
+    lst.Sort(
+        {
+            new IComparer<int> with
+                member this.Compare (a, b)=
+                    match (a, b) with
+                    | _ when a > b -> 1
+                    | _ when a < b -> -1
+                    | _ when a = b -> 0
+        })
+    //enums test
+    let createChessBoard() =
+        let board = Array2D.init 8 8 (fun _ _ -> ChessPiece.Empty)
+        // Place pawns
+        for i = 0 to 7 do
+            board.[1,i] <- ChessPiece.Pawn
+            board.[6,i] <- enum<ChessPiece> (-1 * int ChessPiece.Pawn)
+        // Place black pieces in order
+        [| ChessPiece.Rook; ChessPiece.Knight; ChessPiece.Bishop; ChessPiece.Queen;
+        ChessPiece.King; ChessPiece.Bishop; ChessPiece.Knight; ChessPiece.Rook |]
+        |> Array.iteri(fun idx piece -> board.[0,idx] <- piece)
+        // Place white pieces in order
+        [| ChessPiece.Rook; ChessPiece.Knight; ChessPiece.Bishop; ChessPiece.King;
+        ChessPiece.Queen; ChessPiece.Bishop; ChessPiece.Knight; ChessPiece.Rook |]
+        |> Array.iteri(fun idx piece ->
+                                        board.[7,idx] <- enum<ChessPiece> (-1 * int piece))
+        // Return the board
+        board
+    //active patterns
+    //1. Single-case
+    let (|FileExtension|) filePath = Path.GetExtension(filePath)
+    let determineFileType (filePath : string) =
+        match filePath with
+        // Without active patterns
+        | filePath when Path.GetExtension(filePath) = ".txt"
+            -> printfn "It is a text file."
+        // Converting the data using an active pattern
+        | FileExtension ".jpg"
+        | FileExtension ".png"
+        | FileExtension ".gif"
+            -> printfn "It is an image file."
+        // Binding a new value
+        | FileExtension ext
+            -> printfn "Unknown file extension [%s]" ext
+    //2. Partial-case
+    let (|ToBool|_|) x =
+        let success, result = Boolean.TryParse(x)
+        if success then Some(result)
+        else None
+    let (|ToInt|_|) x =
+        let success, result = Int32.TryParse(x)
+        if success then Some(result)
+        else None
+    let describeString str =
+        match str with
+        | ToBool b -> printfn "%s is a bool with value %b" str b
+        | ToInt i -> printfn "%s is an integer with value %d" str i
+        | _ -> printfn "%s is not a bool, or int" str
+    //parametrized
+    let (|RegexMatch3|_|) (pattern : string) (input : string) =
+        let result = Regex.Match(input, pattern)
+        if result.Success then
+            match (List.tail [ for g in result.Groups -> g.Value ]) with
+            | fst :: snd :: trd :: []
+                -> Some (fst, snd, trd)
+            | [] -> failwith <| "Match succeeded, but no groups found.\n" +
+                                "Use '(.*)' to capture groups"
+            | _ -> failwith "Match succeeded, but did not find exactly three groups."
+        else None
+    let parseTime input =
+        match input with
+        // Match input of the form "6/20/2008"
+        | RegexMatch3 "(\d+)/(\d+)/(\d\d\d\d)" (month, day, year)
+        // Match input of the form "2004-12-8"
+        | RegexMatch3 "(\d\d\d\d)-(\d+)-(\d+)" (year, month, day)
+            -> Some( new DateTime(int year, int month, int day) )
+        | a -> 
+            printfn "what we've got is %s" a
+            None
+    //Multicase
+    let (|Paragraph|Sentence|Word|WhiteSpace|) (input : string) =
+        let input = input.Trim()
+        if input = "" then
+            WhiteSpace
+        elif input.IndexOf(".") <> -1 then
+            let sentences = input.Split([|"."|], StringSplitOptions.None)
+            Paragraph (sentences.Length, sentences)
+        elif input.IndexOf(" ") <> -1 then
+            Sentence (input.Split([|" "|], StringSplitOptions.None))
+        else        
+            Word (input)
+    //feels like it just returns discriminated union to work with
+    let rec countLetters str =
+        match str with
+        | WhiteSpace -> 0
+        | Word x -> x.Length
+        | Sentence words
+            -> words
+            |> Array.map countLetters
+            |> Array.sum
+        | Paragraph (_, sentences)
+            -> sentences
+            |> Array.map countLetters
+            |> Array.sum
     0
